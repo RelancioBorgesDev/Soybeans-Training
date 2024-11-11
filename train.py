@@ -13,6 +13,8 @@ train_dir = 'dataset/treino_final/'
 val_dir = 'dataset/validacao/'
 test_dir = 'dataset/teste/'
 
+print(tf.test.is_gpu_available())
+
 
 # Função para dividir o dataset entre treino, validação e teste
 def split_data(source_dir, train_dir, val_dir, test_dir, train_size=0.7, val_size=0.15, test_size=0.15):
@@ -132,8 +134,8 @@ test_loss, test_acc = model.evaluate(test_generator)
 print(f'Acurácia no conjunto de teste: {test_acc}')
 
 # Plotar gráficos de acurácia e perda
-acc = history.history['accuracy']
-val_acc = history.history['val_accuracy']
+acc = history.history['acc']  # ou 'accuracy', dependendo da versão do TensorFlow
+val_acc = history.history['val_acc']  # ou 'val_accuracy'
 loss = history.history['loss']
 val_loss = history.history['val_loss']
 
