@@ -3,9 +3,6 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers, models, callbacks
-import os
-import random
-import shutil
 
 # Diretórios do dataset
 base_dir = 'dataset/treino/'
@@ -13,40 +10,6 @@ train_dir = 'dataset/treino_final/'
 val_dir = 'dataset/validacao/'
 test_dir = 'dataset/teste/'
 
-print(tf.test.is_gpu_available())
-
-
-# Função para dividir o dataset entre treino, validação e teste
-def split_data(source_dir, train_dir, val_dir, test_dir, train_size=0.7, val_size=0.15, test_size=0.15):
-    all_images = os.listdir(source_dir)
-    random.shuffle(all_images)
-
-    total_images = len(all_images)
-    train_split = int(train_size * total_images)
-    val_split = int(val_size * total_images) + train_split
-
-    train_images = all_images[:train_split]
-    val_images = all_images[train_split:val_split]
-    test_images = all_images[val_split:]
-
-    def copy_images(images, src_dir, dest_dir):
-        os.makedirs(dest_dir, exist_ok=True)
-        for image in images:
-            src_path = os.path.join(src_dir, image)
-            dest_path = os.path.join(dest_dir, image)
-            shutil.copy(src_path, dest_path)
-
-    copy_images(train_images, source_dir, train_dir)
-    copy_images(val_images, source_dir, val_dir)
-    copy_images(test_images, source_dir, test_dir)
-
-
-# Dividir o dataset para cada classe
-for folder in ['Caterpillar', 'Diabrotica speciosa', 'Healthy']:
-    split_data(os.path.join(base_dir, folder),
-               os.path.join(train_dir, folder),
-               os.path.join(val_dir, folder),
-               os.path.join(test_dir, folder))
 
 # Parâmetros de treinamento
 IMG_SIZE = (128, 128)
@@ -56,7 +19,6 @@ LEARNING_RATE = 1e-4
 
 # Normalização apenas, sem aumento de dados adicional
 train_datagen = ImageDataGenerator(rescale=1. / 255)
-
 val_datagen = ImageDataGenerator(rescale=1. / 255)
 
 # Geradores de dados
@@ -110,6 +72,45 @@ reduce_lr = callbacks.ReduceLROnPlateau(
     min_lr=1e-7
 )
 
+
+# Função para plotar o histórico de treinamento
+def plot_history(history):
+    # Verificar as chaves de histórico e usar as disponíveis
+    acc = history.history.get('accuracy', history.history.get('acc', []))
+    val_acc = history.history.get('val_accuracy', history.history.get('val_acc', []))
+    loss = history.history.get('loss', [])
+    val_loss = history.history.get('val_loss', [])
+
+    epochs_range = range(len(acc))
+
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, acc, label='Acurácia Treinamento')
+    plt.plot(epochs_range, val_acc, label='Acurácia Validação')
+    plt.legend(loc='lower right')
+    plt.title('Acurácia no Treinamento e Validação')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, loss, label='Perda Treinamento')
+    plt.plot(epochs_range, val_loss, label='Perda Validação')
+    plt.legend(loc='upper right')
+    plt.title('Perda no Treinamento e Validação')
+    plt.show()
+
+
+
+# Função para exibir resultados de avaliação detalhados no terminal
+def print_evaluation_results(test_loss, test_acc, class_names, predictions, test_generator):
+    print(f"\n{'-' * 40}\nResultados da Avaliação do Modelo")
+    print(f"Perda no conjunto de teste: {test_loss:.4f}")
+    print(f"Acurácia no conjunto de teste: {test_acc:.4f}")
+    print(f"\n{'-' * 40}\nPredições por imagem:")
+
+    for i, filename in enumerate(test_generator.filenames):
+        predicted_class = class_names[np.argmax(predictions[i])]
+        print(f"Imagem: {filename} - Classe prevista: {predicted_class}")
+
+
 # Treinamento do modelo
 history = model.fit(
     train_generator,
@@ -119,6 +120,9 @@ history = model.fit(
     validation_steps=val_generator.samples // BATCH_SIZE,
     callbacks=[early_stopping, reduce_lr]
 )
+
+# Plotar o histórico de treinamento
+plot_history(history)
 
 # Avaliação no conjunto de teste
 test_datagen = ImageDataGenerator(rescale=1. / 255)
@@ -130,27 +134,10 @@ test_generator = test_datagen.flow_from_directory(
     shuffle=False
 )
 
+# Avaliação do modelo no conjunto de teste
 test_loss, test_acc = model.evaluate(test_generator)
-print(f'Acurácia no conjunto de teste: {test_acc}')
+predictions = model.predict(test_generator)
+classes = list(train_generator.class_indices.keys())
 
-# Plotar gráficos de acurácia e perda
-acc = history.history['acc']  # ou 'accuracy', dependendo da versão do TensorFlow
-val_acc = history.history['val_acc']  # ou 'val_accuracy'
-loss = history.history['loss']
-val_loss = history.history['val_loss']
-
-epochs_range = range(len(acc))
-
-plt.figure(figsize=(12, 6))
-plt.subplot(1, 2, 1)
-plt.plot(epochs_range, acc, label='Acurácia Treinamento')
-plt.plot(epochs_range, val_acc, label='Acurácia Validação')
-plt.legend(loc='lower right')
-plt.title('Acurácia no Treinamento e Validação')
-
-plt.subplot(1, 2, 2)
-plt.plot(epochs_range, loss, label='Perda Treinamento')
-plt.plot(epochs_range, val_loss, label='Perda Validação')
-plt.legend(loc='upper right')
-plt.title('Perda no Treinamento e Validação')
-plt.show()
+# Exibir resultados detalhados no terminal
+print_evaluation_results(test_loss, test_acc, classes, predictions, test_generator)
